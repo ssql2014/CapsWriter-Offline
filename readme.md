@@ -49,10 +49,9 @@ LLM 角色既可以使用 Ollama 运行的本地模型，又可以用 API 访问
 
 ## 💻 平台支持
 
-目前**仅能保证在 Windows 10/11 (64位) 下完美运行**。
-
+-   **Windows 10/11 (64位)**：完整支持。
+-   **macOS (Intel/Apple Silicon)**：已提供源码运行支持，默认快捷键改为 F12。首次运行需在「系统设置 → 隐私与安全性」授权麦克风、辅助功能/输入监控。
 -   **Linux**：暂无环境进行测试和打包，无法保证兼容性。
--   **MacOS**：由于底层的 `keyboard` 库已放弃支持 MacOS，且系统权限限制极多，暂时无法支持。
 
 
 ## 🎬 快速开始
@@ -62,6 +61,11 @@ LLM 角色既可以使用 Ollama 运行的本地模型，又可以用 API 访问
 3.  **启动服务**：双击 `start_server.exe`，它会自动最小化到托盘菜单。
 4.  **启动听写**：双击 `start_client.exe`，它会自动最小化到托盘菜单。
 5.  **开始录音**：按住 `CapsLock` 就可以说话了！
+
+**macOS 源码运行指南：**
+- 确保安装 Python 3.10+，在项目根目录创建虚拟环境并依次执行 `pip install -r requirements-server.txt` 和 `pip install -r requirements-client.txt`（默认安装 CPU 版 sherpa-onnx）。
+- 首次运行前，在「系统设置 → 隐私与安全性」为终端或打包后的客户端开启麦克风、辅助功能、输入监控权限。
+- 运行 `python core_server.py` 和 `python core_client.py`，默认热键为 F12；可在 `config.py` 中调整（CapsLock 在 macOS 上默认关闭以避免状态切换）。
 
 
 ## 🎤 模型说明

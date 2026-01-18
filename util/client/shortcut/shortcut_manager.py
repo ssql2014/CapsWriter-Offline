@@ -10,6 +10,7 @@
 """
 import time
 from concurrent.futures import ThreadPoolExecutor
+from platform import system
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from pynput import keyboard, mouse
@@ -46,6 +47,8 @@ class ShortcutManager:
         """
         self.state = state
         self.shortcuts = shortcuts
+        self._platform = system()
+        self._is_windows = self._platform == 'Windows'
 
         # 监听器
         self.keyboard_listener: Optional[keyboard.Listener] = None
@@ -155,6 +158,44 @@ class ShortcutManager:
 
         return win32_event_filter
 
+    # ========== 通用事件处理（跨平台） ==========
+
+    def _handle_key_event(self, key_name: Optional[str], pressed: bool) -> None:
+        """跨平台键盘事件入口"""
+        if not key_name:
+            return
+
+        if self._check_emulating(key_name, pressed=pressed):
+            return
+        if self._check_restoring(key_name, pressed=pressed):
+            return
+
+        task = self.tasks.get(key_name)
+        if not task:
+            return
+
+        if pressed:
+            self._event_handler.handle_keydown(key_name, task)
+        else:
+            self._event_handler.handle_keyup(key_name, task)
+
+    def _handle_mouse_event(self, button_name: Optional[str], pressed: bool) -> None:
+        """跨平台鼠标事件入口"""
+        if not button_name:
+            return
+
+        if self._check_emulating(button_name, is_mouse=True, pressed=pressed):
+            return
+
+        task = self.tasks.get(button_name)
+        if not task:
+            return
+
+        if pressed:
+            self._event_handler.handle_keydown(button_name, task)
+        else:
+            self._handle_mouse_keyup(button_name, task)
+
     def _handle_mouse_keyup(self, button_name: str, task) -> None:
         """处理鼠标按键释放事件"""
         # 单击模式
@@ -216,12 +257,17 @@ class ShortcutManager:
 
     # ========== 防自捕获检查 ==========
 
-    def _check_emulating(self, key_name: str, msg: int, is_mouse: bool = False) -> bool:
+    def _check_emulating(self, key_name: str, msg: int = None, is_mouse: bool = False, pressed: Optional[bool] = None) -> bool:
         """检查是否正在模拟按键"""
         if not self._emulator.is_emulating(key_name):
             return False
 
         # 松开时清除标志
+        if pressed is not None:
+            if not pressed:
+                self._emulator.clear_emulating_flag(key_name)
+            return True
+
         if is_mouse:
             if msg == WM_XBUTTONUP:
                 self._emulator.clear_emulating_flag(key_name)
@@ -231,10 +277,15 @@ class ShortcutManager:
 
         return True  # 放行
 
-    def _check_restoring(self, key_name: str, msg: int) -> bool:
+    def _check_restoring(self, key_name: str, msg: int = None, pressed: Optional[bool] = None) -> bool:
         """检查是否正在恢复按键"""
         if not self.is_restoring(key_name):
             return False
+
+        if pressed is not None:
+            if not pressed:
+                self.clear_restoring_flag(key_name)
+            return True
 
         if msg in (WM_KEYUP, WM_SYSKEYUP):
             self.clear_restoring_flag(key_name)
@@ -243,22 +294,52 @@ class ShortcutManager:
 
     # ========== 公共接口 ==========
 
+    def _on_press(self, key) -> None:
+        """非 Windows 平台的键盘按下回调"""
+        key_name = KeyMapper.key_to_name(key)
+        self._handle_key_event(key_name, True)
+
+    def _on_release(self, key) -> None:
+        """非 Windows 平台的键盘释放回调"""
+        key_name = KeyMapper.key_to_name(key)
+        self._handle_key_event(key_name, False)
+
+    def _on_mouse_click(self, x, y, button, pressed) -> None:
+        """非 Windows 平台的鼠标回调"""
+        if button not in (mouse.Button.x1, mouse.Button.x2):
+            return
+        button_name = 'x1' if button == mouse.Button.x1 else 'x2'
+        self._handle_mouse_event(button_name, pressed)
+
     def start(self) -> None:
         """启动所有监听器"""
         has_keyboard = any(s.type == 'keyboard' for s in self.shortcuts if s.enabled)
         has_mouse = any(s.type == 'mouse' for s in self.shortcuts if s.enabled)
 
         if has_keyboard:
-            self.keyboard_listener = keyboard.Listener(
-                win32_event_filter=self.create_keyboard_filter()
-            )
+            if self._is_windows:
+                self.keyboard_listener = keyboard.Listener(
+                    win32_event_filter=self.create_keyboard_filter()
+                )
+            else:
+                if any(s.suppress for s in self.shortcuts if s.enabled):
+                    logger.info("当前平台不支持 suppress_event，快捷键将以监听模式运行")
+                self.keyboard_listener = keyboard.Listener(
+                    on_press=self._on_press,
+                    on_release=self._on_release,
+                )
             self.keyboard_listener.start()
             logger.info("键盘监听器已启动")
 
         if has_mouse:
-            self.mouse_listener = mouse.Listener(
-                win32_event_filter=self.create_mouse_filter()
-            )
+            if self._is_windows:
+                self.mouse_listener = mouse.Listener(
+                    win32_event_filter=self.create_mouse_filter()
+                )
+            else:
+                self.mouse_listener = mouse.Listener(
+                    on_click=self._on_mouse_click,
+                )
             self.mouse_listener.start()
             logger.info("鼠标监听器已启动")
 

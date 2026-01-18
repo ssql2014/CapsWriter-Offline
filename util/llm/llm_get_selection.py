@@ -9,8 +9,10 @@ LLM 获取选中文字功能
 5. 判断内容是否变化，返回选中的文字
 """
 import time
+from platform import system
+
 import pyclip
-import keyboard
+from pynput import keyboard as pynput_keyboard
 from util.logger import get_logger
 from util.llm.llm_clipboard import safe_paste
 from util.client.state import get_state
@@ -46,7 +48,7 @@ def get_selected_text(role_config) -> str:
         original_clipboard = safe_paste()
 
         # 模拟 Ctrl+C 复制选中的文字
-        keyboard.press_and_release('ctrl+c')
+        _press_copy_shortcut()
 
         # 等待复制操作完成
         time.sleep(0.1)
@@ -96,3 +98,13 @@ def record_selection_usage(role_config, selection_text: str):
     role_name = role_config.name
     _last_selection_by_role[role_name] = selection_text
 
+
+def _press_copy_shortcut():
+    """跨平台触发复制快捷键"""
+    modifier = pynput_keyboard.Key.cmd if system() == 'Darwin' else pynput_keyboard.Key.ctrl
+    controller = pynput_keyboard.Controller()
+    try:
+        with controller.pressed(modifier):
+            controller.tap('c')
+    except Exception as e:
+        logger.warning(f"模拟复制快捷键失败: {e}")

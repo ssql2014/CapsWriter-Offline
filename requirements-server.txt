@@ -1,6 +1,6 @@
 # ASR core
--f https://k2-fsa.github.io/sherpa/onnx/cuda-cn.html
-sherpa-onnx==1.12.20+cuda12.cudnn9
+sherpa-onnx==1.12.20  # CPU wheels for Windows/macOS/Linux
+# (可选) 如需 GPU/CUDA 请参考 https://k2-fsa.github.io/sherpa/onnx/cuda-cn.html 单独安装对应 wheel
 numpy
 
 # basic

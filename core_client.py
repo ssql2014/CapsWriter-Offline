@@ -48,12 +48,8 @@ _main_task = None  # 主任务引用
 def _check_macos_permissions() -> None:
     """检查 MacOS 权限设置"""
     if system() == 'Darwin' and not sys.argv[1:]:
-        if os.getuid() != 0:
-            print('在 MacOS 上需要以管理员启动客户端才能监听键盘活动，请 sudo 启动')
-            input('按回车退出')
-            sys.exit(1)
-        else:
-            os.umask(0o000)
+        print('提示：在 macOS 上需要在“系统设置 > 隐私与安全性”中为终端或打包的客户端开启“辅助功能/输入监控/麦克风”权限。')
+        print('如果快捷键无法触发，授予权限后重新启动客户端即可。')
 
 
 async def main_mic() -> None:

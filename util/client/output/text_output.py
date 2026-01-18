@@ -11,7 +11,6 @@ import asyncio
 import platform
 from typing import Optional
 
-import keyboard
 import pyclip
 from pynput import keyboard as pynput_keyboard
 
@@ -20,6 +19,13 @@ from util.logger import get_logger
 
 # 日志记录器
 logger = get_logger('client')
+try:
+    import keyboard as keyboard_lib  # Windows 上可用
+except Exception:
+    keyboard_lib = None
+
+# 复用的 pynput controller，供粘贴/打字 fallback 使用
+_pynput_controller = pynput_keyboard.Controller()
 
 
 class TextOutput:
@@ -43,6 +49,21 @@ class TextOutput:
         if not text:
             return text
         return text.rstrip('，。！？,.!?')
+    
+    @staticmethod
+    def write_text(text: str) -> None:
+        """跨平台模拟打字，优先使用 keyboard 库，其次使用 pynput"""
+        if not text:
+            return
+
+        if keyboard_lib:
+            try:
+                keyboard_lib.write(text)
+                return
+            except Exception as e:
+                logger.debug(f"keyboard.write 失败，回退到 pynput.type: {e}")
+
+        _pynput_controller.type(text)
     
     async def output(self, text: str, paste: Optional[bool] = None) -> None:
         """
@@ -88,15 +109,14 @@ class TextOutput:
         pyclip.copy(text)
         
         # 粘贴结果（使用 pynput 模拟 Ctrl+V）
-        controller = pynput_keyboard.Controller()
         if platform.system() == 'Darwin':
             # macOS: Command+V
-            with controller.pressed(pynput_keyboard.Key.cmd):
-                controller.tap('v')
+            with _pynput_controller.pressed(pynput_keyboard.Key.cmd):
+                _pynput_controller.tap('v')
         else:
             # Windows/Linux: Ctrl+V
-            with controller.pressed(pynput_keyboard.Key.ctrl):
-                controller.tap('v')
+            with _pynput_controller.pressed(pynput_keyboard.Key.ctrl):
+                _pynput_controller.tap('v')
         
         logger.debug("已发送粘贴命令 (Ctrl+V)")
         
@@ -110,11 +130,11 @@ class TextOutput:
         """
         通过模拟打字方式输出文本
 
-        使用 keyboard.write 替代 pynput.keyboard.Controller.type()，
-        避免与中文输入法冲突。
+        优先使用 keyboard.write，无法使用时回退到 pynput.keyboard.Controller.type()，
+        避免与输入法冲突并保持跨平台。
 
         Args:
             text: 要输出的文本
         """
         logger.debug(f"使用打字方式输出文本，长度: {len(text)}")
-        keyboard.write(text)
+        self.write_text(text)

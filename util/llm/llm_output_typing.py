@@ -6,7 +6,6 @@ LLM Typing 输出模式
 - paste=False: 实时流式 write，每个字都打出来
 """
 import asyncio
-import keyboard
 
 from config import ClientConfig as Config
 from util.tools.asyncio_to_thread import to_thread
@@ -76,10 +75,10 @@ async def handle_typing_mode(text: str, paste: bool = None, matched_hotwords=Non
                     trailing = full_current
 
                 if content_to_write:
-                    # 使用 keyboard.write 替代 pynput controller.type
+                    # 使用 TextOutput.write_text（keyboard 优先，失败回退到 pynput）
                     # 避免与中文输入法冲突
-                    logger.debug(f"output_text: keyboard.write '{content_to_write}'")
-                    keyboard.write(content_to_write)
+                    logger.debug(f"output_text: write_text '{content_to_write}'")
+                    TextOutput.write_text(content_to_write)
                     pending_buffer = trailing
                 else:
                     pending_buffer = trailing
@@ -96,8 +95,8 @@ async def handle_typing_mode(text: str, paste: bool = None, matched_hotwords=Non
             if not chunks:
                 # 降级
                 final_text = TextOutput.strip_punc(content)
-                logger.debug(f"output_text: keyboard.write '{final_text}' (降级)")
-                keyboard.write(final_text)
+                logger.debug(f"output_text: write_text '{final_text}' (降级)")
+                TextOutput.write_text(final_text)
                 return (final_text, 0, 0.0)
             
             # 注意：末尾的 pending_buffer 包含的是垃圾字符，按设计要求不输出
@@ -115,6 +114,6 @@ async def output_text(text: str, paste: bool = None):
     if paste:
         await paste_text(text, restore_clipboard=Config.restore_clip)
     else:
-        # 使用 keyboard.write 替代 pynput controller.type
-        logger.debug(f"output_text: keyboard.write '{text}'")
-        keyboard.write(text)
+        # 使用 keyboard.write 或 pynput.type
+        logger.debug(f"output_text: write_text '{text}'")
+        TextOutput.write_text(text)
