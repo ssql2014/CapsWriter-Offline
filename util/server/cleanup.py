@@ -13,7 +13,13 @@ from config import ClientConfig as Config, __version__
 from util.logger import get_logger
 from util.common.lifecycle import lifecycle
 from util.server.state import get_state
-from util.ui.tray import stop_tray
+
+# 托盘模块在 macOS/Linux 可能不可用，这里延迟导入并容错
+try:
+    from util.ui.tray import stop_tray, enable_min_to_tray
+except Exception:
+    stop_tray = lambda *args, **kwargs: None  # type: ignore
+    enable_min_to_tray = None
 
 logger = get_logger('server')
 console = Console(highlight=False)
@@ -62,7 +68,10 @@ def cleanup_server_resources():
         logger.info("识别进程已退出")
 
     # 3. 停止托盘图标
-    stop_tray()
+    try:
+        stop_tray()
+    except Exception as e:
+        logger.debug(f"停止托盘时忽略错误: {e}")
 
     logger.info("服务端资源清理完成")
     console.print('[green4]再见！')
@@ -70,11 +79,12 @@ def cleanup_server_resources():
 
 def setup_tray():
     """启用托盘图标"""
-    if Config.enable_tray:
-        from util.ui.tray import enable_min_to_tray
+    if Config.enable_tray and enable_min_to_tray:
         icon_path = os.path.join(BASE_DIR, 'assets', 'icon.ico')
         enable_min_to_tray('CapsWriter Server', icon_path, logger=logger, exit_callback=request_exit_from_tray)
         logger.info("托盘图标已启用")
+    elif Config.enable_tray and not enable_min_to_tray:
+        logger.warning("托盘模块不可用，已跳过托盘功能（可能是非 Windows 环境或缺少 tkinter）")
 
 
 def print_banner():
