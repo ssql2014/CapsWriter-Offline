@@ -36,8 +36,9 @@ async def run_websocket_server():
         logger.info("检测到退出标记，停止启动")
         return
 
-    from util.concurrency.daemon_executor import SimpleDaemonExecutor
-    loop.set_default_executor(SimpleDaemonExecutor())
+    from concurrent.futures import ThreadPoolExecutor
+    # 使用标准线程池，避免非 ThreadPoolExecutor 导致的类型错误
+    loop.set_default_executor(ThreadPoolExecutor(max_workers=4))
 
     # 清空物理内存工作集
     if system() == 'Windows':
